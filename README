@@ -1,0 +1,16 @@
+This is simple implementation of BLE sniffer based on nRF51 Dongle hardware. More information is avaiable on https://www.nordicsemi.com/eng/Products/Bluetooth-low-energy/nRF-Sniffer.
+Sniffer software was written using Qt libraries.
+
+Usage: ./nrf-sniffer [options] COM_PORT
+BLE sniffer
+
+Options:
+  --list                    List all serial devices and exit
+  --air-quality             Enable air quality monitor
+  --silent                  Don't report ble packets
+  --ch-list <channel_mask>  Comma separated scan channels
+                            Default: 37,38,39
+  -h, --help                Displays this help.
+
+Arguments:
+  Device port               COM port for serial device.
