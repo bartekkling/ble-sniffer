@@ -16,19 +16,19 @@
 #define SET_ADV_CH_HOP_SEQ  0x17
 
 static QMap<quint8, QString> packet_names{
-    {REQ_FOLLOW, "REQ_FOLLOW"},
-    {EVENT_FOLLOW, "EVENT_FOLLOW"},
-    {EVENT_CONNECT,"EVENT_CONNECT"},
-    {EVENT_PACKET,"EVENT_PACKET"},
-    {REQ_SCAN_CONT,"REQ_SCAN_CONT"},
-    {EVENT_DISCONNET,"EVENT_DISCONNET"},
-    {SET_TEMP_KEY,"SET_TEMP_KEY"},
-    {PING_REQ,"PING_REQ"},
-    {PING_RESP,"PING_RESP"},
+    {REQ_FOLLOW,        "REQ_FOLLOW"},
+    {EVENT_FOLLOW,      "EVENT_FOLLOW"},
+    {EVENT_CONNECT,     "EVENT_CONNECT"},
+    {EVENT_PACKET,      "EVENT_PACKET"},
+    {REQ_SCAN_CONT,     "REQ_SCAN_CONT"},
+    {EVENT_DISCONNET,   "EVENT_DISCONNET"},
+    {SET_TEMP_KEY,      "SET_TEMP_KEY"},
+    {PING_REQ,          "PING_REQ"},
+    {PING_RESP,         "PING_RESP"},
     {SET_ADV_CH_HOP_SEQ,"SET_ADV_CH_HOP_SEQ"}
 };
 
-NrfDecoder::NrfDecoder(UsbSerial *interface, QObject *parent) : QObject(parent)
+NrfDecoder::NrfDecoder(UsbSerial *interface, bool air_quaility, bool silent, ScanChannel ch_mask, QObject *parent) : QObject(parent)
 {
     m_interface = interface;
     if(m_interface)
@@ -37,50 +37,136 @@ NrfDecoder::NrfDecoder(UsbSerial *interface, QObject *parent) : QObject(parent)
     }
     m_rx_counter = 0;
     m_crc_err_counter = 0;
+    m_rx_counter_window = 0;
+    m_crc_err_counter_window = 0;
+    m_air_quality_mode = air_quaility;
+    m_silent_mode = silent;
+    if(m_air_quality_mode)
+    {
+        m_window_timer = new QTimer();
+        connect(this->m_window_timer, SIGNAL(timeout()),this, SLOT(scan_window()));
+        m_window_timer->setSingleShot(false);
+        m_window_timer->start(1000);
+    }
+    setAdvChannelHopSeq(ch_mask);
+}
+
+void NrfDecoder::setAdvChannelHopSeq(ScanChannel channel_mask)
+{
+    QByteArray hop_seq;
+    quint8 num_of_ch = 0;
+    if(channel_mask & SCAN_CH_37)
+    {
+        num_of_ch++;
+        hop_seq.append(37);
+    }
+    if(channel_mask & SCAN_CH_38)
+    {
+        num_of_ch++;
+        hop_seq.append(38);
+    }
+    if(channel_mask & SCAN_CH_39)
+    {
+        num_of_ch++;
+        hop_seq.append(39);
+    }
+    hop_seq.prepend(num_of_ch);
+    if(num_of_ch != 0)
+    {
+        sendCommand(SET_ADV_CH_HOP_SEQ, hop_seq);
+    }
+    else
+    {
+        qDebug() << "Invalid channel selection";
+    }
+}
+
+NrfDecoder::ScanChannel NrfDecoder::channelMaskFromString(QString channels)
+{
+    ScanChannel ch_mask = (ScanChannel)0;
+    if(channels.contains("37"))
+    {
+      ch_mask = ScanChannel(ch_mask | SCAN_CH_37);
+    }
+    if(channels.contains("38"))
+    {
+      ch_mask = ScanChannel(ch_mask | SCAN_CH_38);
+    }
+    if(channels.contains("39"))
+    {
+      ch_mask = ScanChannel(ch_mask | SCAN_CH_39);
+    }
+    return ch_mask;
 }
 
 void NrfDecoder::proccess(QByteArray frame)
 {
-    NrfPacket *packet;
-
-//    qDebug() << "nrf decode" << frame.toHex();
-
-    packet = new NrfPacket(frame);
-    //    qDebug() << packet->getPacketName();
-    switch(packet->getPacketType())
+    NrfPacket *nrf_packet = new NrfPacket(frame);
+    //qDebug() << "nrf decode: " << frame.toHex();
+    //qDebug() << packet->getPacketName();
+    switch(nrf_packet->getPacketType())
     {
     case EVENT_PACKET:
         NrfPacketBle *ble_packet;
-        ble_packet = new NrfPacketBle(packet);
-        m_rx_counter++;
-        //process;
-        io_console::print(QString("%1(+%2)   ").arg(QTime::currentTime().toString("hh:mm:ss:zzz")).arg((float)ble_packet->getTimeDiff()/1000,8));
-        io_console::print(QString("[%1]   ").arg(ble_packet->getChannel(),2));
-        io_console::print(QString("%1dbm   ").arg(ble_packet->getRssi(),2));
-        if(ble_packet->getFlags() & 0x01)
+        ble_packet = new NrfPacketBle(nrf_packet);
+
+        if(!m_silent_mode)
         {
-            io_console::print(QString("%1   ").arg(ble_packet->getPduTypeName(),20));
-            io_console::print(QString("%1   ").arg(ble_packet->getMacAddr()));
-            io_console::print(QString("%1\r\n").arg(QString(ble_packet->getPayload().toHex())));
-        }
-        else
-        {
-            m_crc_err_counter++;
-            io_console::print(QString("CRC_ERROR %1%\r\n").arg((float)m_crc_err_counter*100/m_rx_counter));
+            io_console::print(ble_packet->toString());
         }
 
+        if(m_air_quality_mode)
+        {
+            m_rx_counter++;
+            m_rx_counter_window++;
+            if(!ble_packet->isValid())
+            {
+                m_crc_err_counter++;
+                m_crc_err_counter_window++;
+            }
+        }
 
         delete(ble_packet);
         break;
     default:
         break;
     }
-    delete(packet);
+    delete(nrf_packet);
+}
+
+void NrfDecoder::sendCommand(quint8 id, QByteArray payload)
+{
+    QByteArray usb_command;
+    usb_command.append(0x06); //header len
+    usb_command.append(payload.length());  // payload lenght
+    usb_command.append(0x01); //prot ver
+    usb_command.append(char(0x00)); //packet counter LSB
+    usb_command.append(char(0x00)); //packet counter MSB
+    usb_command.append(id); //packet type
+    usb_command.append(payload);
+
+    m_interface->send(usb_command);
+}
+
+void NrfDecoder::scan_window()
+{
+    QString report;
+
+    report.append(QString("Packets/s: %1   ").arg(m_rx_counter_window, 4));
+    report.append(QString("CRC_ERR/s: %1   ").arg(m_crc_err_counter_window, 4));
+    report.append(QString("Packets/session: %1   ").arg((float)m_rx_counter, 10));
+    report.append(QString("CRC_ERR/session: %1%   \r\n").arg((float)m_crc_err_counter*100/m_rx_counter, 2));
+
+    io_console::print(report);
+
+    m_rx_counter_window = 0;
+    m_crc_err_counter_window = 0;
 }
 
 NrfPacket::NrfPacket(QByteArray frame)
 {
     this->m_header = new NrfPacketHeader(frame.left(6));
+    //qDebug() << "m_header_pc" << m_header->getPacketCounter();
     this->m_payload = new QByteArray(frame.remove(0,6));
 }
 
@@ -158,6 +244,8 @@ NrfPacketBle::NrfPacketBle(NrfPacket *packet)
         m_header_channel = packet->getPayload()->at(2);
         m_header_rssi = packet->getPayload()->at(3);
         //ec [5][4]
+        //        quint16 ec = packet->getPayload()->at(4) + (packet->getPayload()->at(5)<<8);
+        //        qDebug() << "Ec: " << ec;
         m_header_time_diff = (((quint32)packet->getPayload()->at(6)) & 0x000000FF) + ((((quint32)packet->getPayload()->at(7)) << 8) & 0x0000FF00) + ((((quint32)packet->getPayload()->at(8)) << 16) & 0x00FF0000) + ((((quint32)packet->getPayload()->at(9)) << 24) & 0x0FF000000);
 
         m_acces_address = packet->getPayload()->mid(10,4);
@@ -212,7 +300,7 @@ QString NrfPacketBle::getPduTypeName()
         break;
     case 0x02:
         return "ADV_NON_CONN_IND";
-    break;
+        break;
     case 0x03:
         return "SCAN_REQ";
         break;
@@ -244,4 +332,29 @@ quint8 NrfPacketBle::getFlags()
 qint8 NrfPacketBle::getRssi()
 {
     return m_header_rssi;
+}
+
+QString NrfPacketBle::toString()
+{
+    QString ret_val;
+
+    ret_val.append(QString("%1(+%2)   ").arg(QTime::currentTime().toString("hh:mm:ss:zzz")).arg((float)this->getTimeDiff()/1000,8));
+    ret_val.append(QString("[%1]   ").arg(this->getChannel(),2));
+    ret_val.append(QString("-%1dbm   ").arg(this->getRssi(),2));
+    if(this->isValid() & 0x01)
+    {
+        ret_val.append(QString("%1   ").arg(this->getPduTypeName(),20));
+        ret_val.append(QString("%1   ").arg(this->getMacAddr()));
+        ret_val.append(QString("%1\r\n").arg(QString(this->getPayload().toHex())));
+    }
+    else
+    {
+        ret_val.append(QString("CRC_ERROR\r\n"));
+    }
+    return ret_val;
+}
+
+bool NrfPacketBle::isValid()
+{
+    return (this->m_header_flags & 0x01);
 }

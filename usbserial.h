@@ -14,12 +14,14 @@ signals:
 public slots:
   bool open(QString port_name);
   void newData(void);
-  //void send(quint16 id,QByteArray data);
+  void send(QByteArray frame);
 private:
   QSerialPort *port;
-  QByteArray *frame;
+  QByteArray *rx_frame;
 
-  void decodeSLIP(void);
+  void decodeSLIP(QByteArray *frame);
+  void encodeSLIP(QByteArray *frame);
+
 };
 
 #endif // USBSERIAL_H

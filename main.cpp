@@ -20,8 +20,14 @@ int main(int argc, char *argv[])
     parser.addHelpOption();
     QCommandLineOption usbDeviceListOption(QStringList() << "l" << "list", "List all serial devcices and ends program");
     parser.addOption(usbDeviceListOption);
-    QCommandLineOption usbDevicePortOption(QStringList() << "d" << "device", "COM port of serial device.", "[COM_PORT]");
+    QCommandLineOption usbDevicePortOption(QStringList() << "d" << "device", "COM port of serial device.", "COM_PORT");
     parser.addOption(usbDevicePortOption);
+    QCommandLineOption airQualityOption(QStringList() << "air-quality", "Enable air quality monitor");
+    parser.addOption(airQualityOption);
+    QCommandLineOption silentOption(QStringList() << "silent", "Don't report ble packets");
+    parser.addOption(silentOption);
+    QCommandLineOption channelOption(QStringList() << "ch-list", "Comma separated scan channels. Avaiable channels: 37,38,39. Default: 37,38,39", "channel_mask");
+    parser.addOption(channelOption);
     parser.process(a);
 
     //List Serial devices
@@ -37,8 +43,13 @@ int main(int argc, char *argv[])
         {
             if(port->open(parser.value(usbDevicePortOption)))
             {
-                io_console::print("Port ready");
-                nRF_decoder = new NrfDecoder(port);
+                NrfDecoder::ScanChannel ch = NrfDecoder::SCAN_CH_ALL;
+                if(parser.isSet(channelOption))
+                {
+                    ch = NrfDecoder::channelMaskFromString(parser.value(channelOption));
+                }
+                nRF_decoder = new NrfDecoder(port, parser.isSet(airQualityOption), parser.isSet(silentOption), ch);
+                io_console::print("Sniffer started...\r\n");
             }
             else
             {

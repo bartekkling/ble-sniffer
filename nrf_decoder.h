@@ -1,6 +1,7 @@
 #ifndef NRF_DECODER_H
 #define NRF_DECODER_H
 #include <QObject>
+#include <QTimer>
 #include "usbserial.h"
 
 class NrfPacketHeader
@@ -39,16 +40,35 @@ class NrfDecoder : public QObject
 {
     Q_OBJECT
 public:
-    explicit NrfDecoder(UsbSerial *interface, QObject *parent = 0);
+    enum ScanChannel
+    {
+        SCAN_CH_NONE = 0,
+        SCAN_CH_37   = (1<<0),
+        SCAN_CH_38   = (1<<1),
+        SCAN_CH_39   = (1<<2),
+        SCAN_CH_ALL  = (SCAN_CH_37 | SCAN_CH_38 | SCAN_CH_39)
+    };
+    explicit NrfDecoder(UsbSerial *interface, bool air_quaility = false, bool silent = false, ScanChannel ch_mask = SCAN_CH_ALL, QObject *parent = 0);
+    void setAdvChannelHopSeq(ScanChannel channel_mask);
+    static ScanChannel channelMaskFromString(QString channels);
 
 private:
     UsbSerial *m_interface;
-    quint32 m_rx_counter;
-    quint32 m_crc_err_counter;
+    quint64 m_rx_counter;
+    quint64 m_crc_err_counter;
+    quint32 m_rx_counter_window;
+    quint32 m_crc_err_counter_window;
+    bool m_air_quality_mode;
+    bool m_silent_mode;
+    QTimer *m_window_timer;
 signals:
 
 public slots:
     void proccess(QByteArray frame);
+    void sendCommand(quint8 id, QByteArray payload);
+
+private slots:
+    void scan_window(void);
 };
 
 
@@ -64,6 +84,8 @@ public:
     QByteArray getPayload(void);
     quint8 getFlags(void);
     qint8 getRssi(void);
+    QString toString(void);
+    bool isValid(void);
 private:
     //header
         quint8 m_header_len;
