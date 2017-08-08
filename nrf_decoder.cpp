@@ -3,6 +3,7 @@
 #include <QException>
 #include "io_console.h"
 #include "QTime"
+#include "QRegExp"
 
 #define REQ_FOLLOW          0x00
 #define EVENT_FOLLOW        0x01
@@ -49,6 +50,7 @@ NrfDecoder::NrfDecoder(UsbSerial *interface, bool air_quaility, bool silent, Sca
         m_window_timer->start(1000);
     }
     setAdvChannelHopSeq(ch_mask);
+    m_white_list.clear();
 }
 
 void NrfDecoder::setAdvChannelHopSeq(ScanChannel channel_mask)
@@ -99,6 +101,40 @@ NrfDecoder::ScanChannel NrfDecoder::channelMaskFromString(QString channels)
     return ch_mask;
 }
 
+bool NrfDecoder::setWhiteList(QStringList white_list)
+{
+    bool ret_val = true;
+    m_white_list = white_list;
+    QRegExp rx_no_colon("([0-9A-Fa-f]{2}){6}");
+    QRegExp rx_colon("([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})");
+
+    for(int i = 0; i < m_white_list.size(); i++)
+    {
+        if(rx_no_colon.indexIn(m_white_list.at(i)) >= 0)
+        {
+            QString temp = m_white_list.at(i);
+            for(int j = 2; j < temp.size(); j+=3)
+                temp.insert(j,QChar(':'));
+            m_white_list.replace(i,temp);
+        }
+        else if(rx_colon.indexIn(m_white_list.at(i)) >= 0)
+        {
+            ret_val = true;
+        }
+        else
+        {
+            io_console::print(m_white_list.at(i) + " has invalid format!\r\n");
+            ret_val = false;
+            break;
+        }
+    }
+//    foreach (const QString &str, m_white_list)
+//    {
+//        qDebug() << "Filter: " << str;
+//    }
+    return ret_val;
+}
+
 void NrfDecoder::proccess(QByteArray frame)
 {
     NrfPacket *nrf_packet = new NrfPacket(frame);
@@ -112,7 +148,15 @@ void NrfDecoder::proccess(QByteArray frame)
 
         if(!m_silent_mode)
         {
-            io_console::print(ble_packet->toString());
+            if(m_white_list.isEmpty())
+            {
+                io_console::print(ble_packet->toString());
+            }
+            else if(m_white_list.contains(ble_packet->getMacAddr(),Qt::CaseInsensitive))
+            {
+                io_console::print(ble_packet->toString());
+            }
+
         }
 
         if(m_air_quality_mode)
@@ -145,6 +189,7 @@ void NrfDecoder::sendCommand(quint8 id, QByteArray payload)
     usb_command.append(id); //packet type
     usb_command.append(payload);
 
+    //qDebug() << usb_command.toHex();
     m_interface->send(usb_command);
 }
 
@@ -338,7 +383,8 @@ QString NrfPacketBle::toString()
 {
     QString ret_val;
 
-    ret_val.append(QString("%1(+%2)   ").arg(QTime::currentTime().toString("hh:mm:ss:zzz")).arg((float)this->getTimeDiff()/1000,8));
+//    ret_val.append(QString("%1(+%2)   ").arg(QTime::currentTime().toString("hh:mm:ss:zzz")).arg((float)this->getTimeDiff()/1000,8));
+    ret_val.append(QString("%1   ").arg(QTime::currentTime().toString("hh:mm:ss:zzz")));
     ret_val.append(QString("[%1]   ").arg(this->getChannel(),2));
     ret_val.append(QString("-%1dbm   ").arg(this->getRssi(),2));
     if(this->isValid() & 0x01)

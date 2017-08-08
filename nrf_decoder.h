@@ -51,7 +51,7 @@ public:
     explicit NrfDecoder(UsbSerial *interface, bool air_quaility = false, bool silent = false, ScanChannel ch_mask = SCAN_CH_ALL, QObject *parent = 0);
     void setAdvChannelHopSeq(ScanChannel channel_mask);
     static ScanChannel channelMaskFromString(QString channels);
-
+    bool setWhiteList(QStringList white_list);
 private:
     UsbSerial *m_interface;
     quint64 m_rx_counter;
@@ -61,6 +61,7 @@ private:
     bool m_air_quality_mode;
     bool m_silent_mode;
     QTimer *m_window_timer;
+    QStringList m_white_list;
 signals:
 
 public slots:
