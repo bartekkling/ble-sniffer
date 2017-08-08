@@ -29,7 +29,7 @@ static QMap<quint8, QString> packet_names{
     {SET_ADV_CH_HOP_SEQ,"SET_ADV_CH_HOP_SEQ"}
 };
 
-NrfDecoder::NrfDecoder(UsbSerial *interface, bool air_quaility, bool silent, ScanChannel ch_mask, QObject *parent) : QObject(parent)
+NrfDecoder::NrfDecoder(UsbSerial *interface, bool air_quaility, bool silent, bool crc_err, ScanChannel ch_mask, QObject *parent) : QObject(parent)
 {
     m_interface = interface;
     if(m_interface)
@@ -42,6 +42,7 @@ NrfDecoder::NrfDecoder(UsbSerial *interface, bool air_quaility, bool silent, Sca
     m_crc_err_counter_window = 0;
     m_air_quality_mode = air_quaility;
     m_silent_mode = silent;
+    m_crc_err = crc_err;
     if(m_air_quality_mode)
     {
         m_window_timer = new QTimer();
@@ -148,13 +149,16 @@ void NrfDecoder::proccess(QByteArray frame)
 
         if(!m_silent_mode)
         {
-            if(m_white_list.isEmpty())
+            if(ble_packet->isValid() || m_crc_err)
             {
-                io_console::print(ble_packet->toString());
-            }
-            else if(m_white_list.contains(ble_packet->getMacAddr(),Qt::CaseInsensitive))
-            {
-                io_console::print(ble_packet->toString());
+                if(m_white_list.isEmpty())
+                {
+                    io_console::print(ble_packet->toString());
+                }
+                else if(m_white_list.contains(ble_packet->getMacAddr(),Qt::CaseInsensitive))
+                {
+                    io_console::print(ble_packet->toString());
+                }
             }
 
         }

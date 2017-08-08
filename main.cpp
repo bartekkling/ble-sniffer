@@ -30,6 +30,8 @@ int main(int argc, char *argv[])
     parser.addOption(channelOption);
     QCommandLineOption whiteList(QStringList() << "wl" << "white-list", "MAC address of device to add to white list\r\nEx.: 0102ABCD44, AA:BB:44:53:78:A4, aabb554433dd, aa:dd:54:22:33:de", "mac_address");
     parser.addOption(whiteList);
+    QCommandLineOption crcErrReport(QStringList() << "crc-err", "Report CRC errors");
+    parser.addOption(crcErrReport);
     parser.addHelpOption();
 
     parser.process(a);
@@ -59,7 +61,7 @@ int main(int argc, char *argv[])
                 {
                     ch = NrfDecoder::channelMaskFromString(parser.value(channelOption));
                 }
-                nRF_decoder = new NrfDecoder(port, parser.isSet(airQualityOption), parser.isSet(silentOption), ch);
+                nRF_decoder = new NrfDecoder(port, parser.isSet(airQualityOption), parser.isSet(silentOption), parser.isSet(crcErrReport), ch);
                 if(nRF_decoder->setWhiteList(parser.values(whiteList)))
                 {
                     io_console::print("Sniffer started...\r\n");

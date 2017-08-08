@@ -48,7 +48,7 @@ public:
         SCAN_CH_39   = (1<<2),
         SCAN_CH_ALL  = (SCAN_CH_37 | SCAN_CH_38 | SCAN_CH_39)
     };
-    explicit NrfDecoder(UsbSerial *interface, bool air_quaility = false, bool silent = false, ScanChannel ch_mask = SCAN_CH_ALL, QObject *parent = 0);
+    explicit NrfDecoder(UsbSerial *interface, bool air_quaility = false, bool silent = false, bool crc_err = false, ScanChannel ch_mask = SCAN_CH_ALL, QObject *parent = 0);
     void setAdvChannelHopSeq(ScanChannel channel_mask);
     static ScanChannel channelMaskFromString(QString channels);
     bool setWhiteList(QStringList white_list);
@@ -60,6 +60,7 @@ private:
     quint32 m_crc_err_counter_window;
     bool m_air_quality_mode;
     bool m_silent_mode;
+    bool m_crc_err;
     QTimer *m_window_timer;
     QStringList m_white_list;
 signals:
