@@ -25,6 +25,12 @@ QString UsbSerial::getDeviceList()
     return list;
 }
 
+UsbSerial::~UsbSerial()
+{
+    port->clear();
+    port->close();
+}
+
 bool UsbSerial::open(QString port_name)
 {
     if(port)
@@ -33,6 +39,8 @@ bool UsbSerial::open(QString port_name)
         port->setBaudRate(460800);
         port->setFlowControl(QSerialPort::HardwareControl);
         port->setDataBits(QSerialPort::Data8);
+        port->open(QIODevice::ReadWrite);
+        port->close(); // if COM port wasn't closed properly, closing port is necessary to receive data
         port->open(QIODevice::ReadWrite);
         if(port->isOpen())
         {

@@ -52,6 +52,7 @@ public:
     void setAdvChannelHopSeq(ScanChannel channel_mask);
     static ScanChannel channelMaskFromString(QString channels);
     bool setWhiteList(QStringList white_list);
+    void close_port();
 private:
     UsbSerial *m_interface;
     quint64 m_rx_counter;

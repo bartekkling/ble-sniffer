@@ -136,6 +136,11 @@ bool NrfDecoder::setWhiteList(QStringList white_list)
     return ret_val;
 }
 
+void NrfDecoder::close_port()
+{
+    delete m_interface;
+}
+
 void NrfDecoder::proccess(QByteArray frame)
 {
     NrfPacket *nrf_packet = new NrfPacket(frame);

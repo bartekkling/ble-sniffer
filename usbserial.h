@@ -9,6 +9,7 @@ class UsbSerial : public QObject
 public:
   explicit UsbSerial(QObject *parent = 0);
   static QString getDeviceList(void);
+  ~UsbSerial();
 signals:
   void newData(QByteArray data);
 public slots:
