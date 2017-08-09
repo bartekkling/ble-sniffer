@@ -43,6 +43,10 @@ NrfDecoder::NrfDecoder(UsbSerial *interface, bool air_quaility, bool silent, boo
     m_air_quality_mode = air_quaility;
     m_silent_mode = silent;
     m_crc_err = crc_err;
+    m_hw_time = 0;
+    m_use_system_time = false;
+    m_delta_us = false;
+
     if(m_air_quality_mode)
     {
         m_window_timer = new QTimer();
@@ -136,9 +140,45 @@ bool NrfDecoder::setWhiteList(QStringList white_list)
     return ret_val;
 }
 
+void NrfDecoder::setDeltaResolution(bool us)
+{
+    m_delta_us = us;
+}
+
+void NrfDecoder::setUseSystemTime(bool system_time)
+{
+    m_use_system_time = system_time;
+}
+
 void NrfDecoder::close_port()
 {
     delete m_interface;
+}
+
+void NrfDecoder::print_delta()
+{
+    quint64 delta = m_hw_time - m_last_print;
+    m_last_print = m_hw_time;
+    if(m_delta_us)
+    {
+        io_console::print(QString("%1:%2us    ").arg(QChar(0x0394)).arg(delta, 7));
+    }
+    else
+    {
+        io_console::print(QString("%1:%2ms    ").arg(QChar(0x0394)).arg(delta/1000, 4));
+    }
+}
+
+void NrfDecoder::print_timestamp()
+{
+    if(m_use_system_time)
+    {
+        io_console::print(QString("%1  ").arg(QTime::currentTime().toString("hh:mm:ss:zzz")));
+    }
+    else
+    {
+        io_console::print(QString("%1  ").arg(QDateTime::fromMSecsSinceEpoch(m_hw_time/1000).toString("hh:mm:ss:zzz")));
+    }
 }
 
 void NrfDecoder::proccess(QByteArray frame)
@@ -152,17 +192,26 @@ void NrfDecoder::proccess(QByteArray frame)
         NrfPacketBle *ble_packet;
         ble_packet = new NrfPacketBle(nrf_packet);
 
+        if(m_hw_time == 0)
+        {
+            m_hw_time = QDateTime::currentMSecsSinceEpoch()*1000;
+            m_last_print = m_hw_time;
+        }
+        else
+        {
+            m_hw_time += ble_packet->getTimeDiff();
+        }
         if(!m_silent_mode)
         {
             if(ble_packet->isValid() || m_crc_err)
             {
-                if(m_white_list.isEmpty())
+                if(m_white_list.isEmpty() || m_white_list.contains(ble_packet->getMacAddr(),Qt::CaseInsensitive))
                 {
+                    print_timestamp();
+                    print_delta();
                     io_console::print(ble_packet->toString());
-                }
-                else if(m_white_list.contains(ble_packet->getMacAddr(),Qt::CaseInsensitive))
-                {
-                    io_console::print(ble_packet->toString());
+
+                    //qDebug() << " " << QTime::currentTime().toString("hh:mm:ss:zzz") << QDateTime::fromMSecsSinceEpoch(m_hw_time/1000).toString("hh:mm:ss:zzz");
                 }
             }
 
@@ -318,6 +367,7 @@ NrfPacketBle::NrfPacketBle(NrfPacket *packet)
         //        qDebug() << "crc:"  << m_crc.toHex();
         //        qDebug() << "time diff: " << m_header_time_diff;
         //        qDebug() << "ch" << m_header_channel;
+        m_header_time_diff += (4+1+1+6+m_length+3)*7;
     }
 }
 
@@ -393,7 +443,6 @@ QString NrfPacketBle::toString()
     QString ret_val;
 
 //    ret_val.append(QString("%1(+%2)   ").arg(QTime::currentTime().toString("hh:mm:ss:zzz")).arg((float)this->getTimeDiff()/1000,8));
-    ret_val.append(QString("%1   ").arg(QTime::currentTime().toString("hh:mm:ss:zzz")));
     ret_val.append(QString("[%1]   ").arg(this->getChannel(),2));
     ret_val.append(QString("-%1dbm   ").arg(this->getRssi(),2));
     if(this->isValid() & 0x01)

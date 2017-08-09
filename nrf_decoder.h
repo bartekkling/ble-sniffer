@@ -52,6 +52,8 @@ public:
     void setAdvChannelHopSeq(ScanChannel channel_mask);
     static ScanChannel channelMaskFromString(QString channels);
     bool setWhiteList(QStringList white_list);
+    void setDeltaResolution(bool us);
+    void setUseSystemTime(bool system_time);
     void close_port();
 private:
     UsbSerial *m_interface;
@@ -64,6 +66,13 @@ private:
     bool m_crc_err;
     QTimer *m_window_timer;
     QStringList m_white_list;
+    quint64 m_hw_time;
+    quint64 m_last_print;
+    bool m_use_system_time;
+    bool m_delta_us;
+
+    void print_delta();
+    void print_timestamp();
 signals:
 
 public slots:

@@ -32,6 +32,10 @@ int main(int argc, char *argv[])
     parser.addOption(whiteList);
     QCommandLineOption crcErrReport(QStringList() << "crc-err", "Report CRC errors");
     parser.addOption(crcErrReport);
+    QCommandLineOption deltaResolution(QStringList() << "delta-us", "Print deltas in us resolution.");
+    parser.addOption(deltaResolution);
+    QCommandLineOption useSysTime(QStringList() << "systime", "Use system time intead of hardware time");
+    parser.addOption(useSysTime);
     parser.addHelpOption();
 
     parser.process(a);
@@ -62,6 +66,8 @@ int main(int argc, char *argv[])
                     ch = NrfDecoder::channelMaskFromString(parser.value(channelOption));
                 }
                 nRF_decoder = new NrfDecoder(port, parser.isSet(airQualityOption), parser.isSet(silentOption), parser.isSet(crcErrReport), ch);
+                nRF_decoder->setDeltaResolution(parser.isSet(deltaResolution));
+                nRF_decoder->setUseSystemTime(parser.isSet(useSysTime));
                 if(nRF_decoder->setWhiteList(parser.values(whiteList)))
                 {
                     io_console::print("Sniffer started...\r\n");

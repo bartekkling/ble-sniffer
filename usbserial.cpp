@@ -44,6 +44,7 @@ bool UsbSerial::open(QString port_name)
         port->open(QIODevice::ReadWrite);
         if(port->isOpen())
         {
+            port->flush();
             connect(port, SIGNAL(readyRead()),this, SLOT(newData()));
             return true;
         }
