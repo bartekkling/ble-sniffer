@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QTimer>
 #include "usbserial.h"
+#include <QStringList>
 
 class NrfPacketHeader
 {
